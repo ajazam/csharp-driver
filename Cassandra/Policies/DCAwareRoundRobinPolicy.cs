@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System;
+using System.Collections;
+using System.Linq;
 
 namespace Cassandra
 {
@@ -108,14 +111,25 @@ namespace Cassandra
         ///  first for querying, which one to use as failover, etc...</returns>
         public IEnumerable<Host> NewQueryPlan(Query query)
         {
+            
+            Random random = new Random();
+
+            List<Host> localhosts = new List<Host> { };
+
+
             foreach (var h in _cluster.Metadata.AllHosts())
             {
                 if (_localDc.Equals(DC(h)))
                 {
                     if (h.IsConsiderablyUp)
-                        yield return h;
+                        //yield return h;
+                        localhosts.Add(h);
                 }
             }
+
+            var randomLocalHosts = localhosts.OrderBy(x=>random.Next());
+            
+            List<Host> remoteHosts = new List<Host> { };
             var ixes = new Dictionary<string, int>();
             foreach (var h in _cluster.Metadata.AllHosts())
             {
@@ -123,7 +137,8 @@ namespace Cassandra
                 {
                     if (h.IsConsiderablyUp && (!ixes.ContainsKey(DC(h)) || ixes[DC(h)] < _usedHostsPerRemoteDc))
                     {
-                        yield return h;
+                        //yield return h;
+                        remoteHosts.Add(h);
                         if (!ixes.ContainsKey(DC(h)))
                             ixes.Add(DC(h), 1);
                         else
@@ -131,6 +146,14 @@ namespace Cassandra
                     }
                 }
             }
+
+            var randomRemoteHosts = remoteHosts.OrderBy(x=>random.Next());
+
+            List<Host> allHosts = new List<Host> {};
+            allHosts.AddRange(randomLocalHosts);
+            allHosts.AddRange(randomRemoteHosts);
+
+            return allHosts;
         }
     }
 }
